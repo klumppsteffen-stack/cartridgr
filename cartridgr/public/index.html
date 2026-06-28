@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cartridgr — Deine Spielebibliothek</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231a1a18'/><text y='.9em' font-size='70' x='12'>🎮</text></svg>">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f0; --surface-0: #f5f5f0; --surface-1: #eeebe4; --surface-2: #ffffff;
+    --border: rgba(0,0,0,0.1); --border-strong: rgba(0,0,0,0.2);
+    --text-primary: #1a1a18; --text-secondary: #555550; --text-muted: #999990;
+    --text-accent: #185fa5; --text-success: #3b6d11; --text-warning: #854f0b; --text-danger: #a32d2d;
+    --bg-accent: #e6f1fb; --bg-success: #eaf3de; --bg-warning: #fef3e2; --bg-danger: #fcebeb;
+    --border-accent: #85b7eb; --border-success: #97c459; --border-warning: #f0c060; --border-danger: #f09595;
+    --fill-primary: #1a1a18; --fill-accent: #378add; --radius: 8px;
+    --font: system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18; --surface-0: #1a1a18; --surface-1: #252523; --surface-2: #2e2e2b;
+      --border: rgba(255,255,255,0.1); --border-strong: rgba(255,255,255,0.2);
+      --text-primary: #f0ede6; --text-secondary: #aaa89f; --text-muted: #777770;
+      --text-accent: #85b7eb; --text-success: #97c459; --text-warning: #f0c060; --text-danger: #f09595;
+      --bg-accent: #0c447c; --bg-success: #27500a; --bg-warning: #633806; --bg-danger: #791f1f;
+      --border-accent: #185fa5; --border-success: #3b6d11; --border-warning: #854f0b; --border-danger: #a32d2d;
+      --fill-primary: #f0ede6;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text-primary); font-family: var(--font); }
+  #root { min-height: 100vh; }
+  .app { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem; }
+  .header { display: flex; align-items: center; gap: 12px; padding-bottom: 1.25rem; border-bottom: 0.5px solid var(--border); margin-bottom: 1.25rem; }
+  .logo { width: 38px; height: 38px; background: var(--fill-primary); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--bg); font-size: 20px; flex-shrink: 0; }
+  .logo-text { font-size: 22px; font-weight: 600; color: var(--text-primary); letter-spacing: -.5px; }
+  .logo-sub { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+  .header-actions { margin-left: auto; display: flex; gap: 8px; }
+  .tabs { display: flex; gap: 2px; margin-bottom: 1.25rem; border-bottom: 0.5px solid var(--border); }
+  .tab { padding: 8px 16px; font-size: 13px; background: none; border: none; cursor: pointer; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; font-family: var(--font); }
+  .tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); font-weight: 500; }
+  .tab:hover:not(.active) { color: var(--text-primary); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+  .stat { background: var(--surface-1); border-radius: var(--radius); padding: .875rem 1rem; }
+  .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .05em; }
+  .stat-value { font-size: 24px; font-weight: 600; color: var(--text-primary); }
+  .btn { background: none; border: 0.5px solid var(--border-strong); border-radius: var(--radius); padding: 7px 13px; cursor: pointer; font-size: 13px; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; transition: background .15s; font-family: var(--font); }
+  .btn:hover { background: var(--surface-1); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-primary { background: var(--fill-primary); color: var(--bg); border-color: var(--fill-primary); font-weight: 500; }
+  .btn-primary:hover { opacity: .85; }
+  .search-input { width: 100%; padding: 9px 14px; font-size: 14px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text-primary); font-family: var(--font); }
+  .search-input:focus { outline: none; border-color: var(--fill-accent); }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .chip { padding: 4px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; border: 0.5px solid var(--border); background: var(--surface-1); color: var(--text-secondary); transition: all .15s; font-family: var(--font); }
+  .chip.active { background: var(--fill-primary); color: var(--bg); border-color: var(--fill-primary); }
+  .game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .game-card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color .15s, transform .1s; }
+  .game-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .game-cover { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; background: var(--surface-1); }
+  .game-cover-ph { width: 100%; aspect-ratio: 3/4; background: var(--surface-1); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 36px; }
+  .game-info { padding: 8px 10px; }
+  .game-title { font-size: 12px; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .game-meta { display: flex; align-items: center; justify-content: space-between; }
+  .game-platform-badge { font-size: 10px; color: var(--text-muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .s-unplayed { background: #f0c060; } .s-playing { background: #378add; } .s-completed { background: #639922; } .s-dropped { background: #999; }
+  .list-view { display: flex; flex-direction: column; gap: 5px; }
+  .game-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius); transition: border-color .15s; }
+  .game-row:hover { border-color: var(--border-strong); }
+  .game-row-thumb { width: 30px; height: 40px; object-fit: cover; border-radius: 4px; background: var(--surface-1); flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; }
+  .game-row-name { flex: 1; font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .game-row-name:hover { color: var(--text-accent); }
+  .game-row-hltb { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+  .platform-tag { font-size: 11px; color: var(--text-muted); background: var(--surface-1); padding: 2px 7px; border-radius: 20px; border: 0.5px solid var(--border); white-space: nowrap; }
+  .status-sel { font-size: 11px; padding: 3px 7px; border: 0.5px solid var(--border); border-radius: 20px; background: transparent; color: var(--text-secondary); cursor: pointer; font-family: var(--font); }
+  .btn-del { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px 6px; border-radius: 4px; display: flex; align-items: center; font-size: 16px; }
+  .btn-del:hover { color: var(--text-danger); }
+  .empty { text-align: center; padding: 4rem 1rem; color: var(--text-muted); }
+  .empty i { font-size: 48px; margin-bottom: 14px; display: block; }
+  .empty p { font-size: 14px; line-height: 1.6; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+  .modal { background: var(--surface-2); border-radius: 14px; border: 0.5px solid var(--border); padding: 1.5rem; width: 100%; max-width: 500px; max-height: 88vh; overflow-y: auto; }
+  .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 1.25rem; color: var(--text-primary); }
+  .form-group { margin-bottom: 1rem; }
+  .form-label { font-size: 11px; color: var(--text-muted); margin-bottom: 5px; display: block; text-transform: uppercase; letter-spacing: .05em; }
+  input[type=text], input[type=password], select { width: 100%; padding: 9px 12px; font-size: 14px; border: 0.5px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2); color: var(--text-primary); font-family: var(--font); }
+  input[type=text]:focus, select:focus { outline: none; border-color: var(--fill-accent); }
+  .search-results { border: 0.5px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 6px; max-height: 260px; overflow-y: auto; }
+  .search-result { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; border-bottom: 0.5px solid var(--border); transition: background .1s; }
+  .search-result:last-child { border-bottom: none; }
+  .search-result:hover { background: var(--surface-1); }
+  .sr-thumb { width: 30px; height: 40px; border-radius: 3px; background: var(--surface-1); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-muted); object-fit: cover; }
+  .sr-name { font-size: 13px; color: var(--text-primary); font-weight: 500; }
+  .sr-year { font-size: 11px; color: var(--text-muted); }
+  .platform-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .platform-btn { padding: 6px 12px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--surface-1); cursor: pointer; font-size: 12px; color: var(--text-secondary); transition: all .15s; font-family: var(--font); }
+  .platform-btn.active { border-color: var(--border-accent); background: var(--bg-accent); color: var(--text-accent); }
+  .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 0.5px solid var(--border); }
+  .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 280px); min-height: 400px; }
+  .chat-box { flex: 1; overflow-y: auto; padding: 1rem; background: var(--surface-1); border-radius: 12px; border: 0.5px solid var(--border); margin-bottom: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.65; }
+  .msg-user { align-self: flex-end; background: var(--fill-primary); color: var(--bg); border-radius: 12px 12px 2px 12px; }
+  .msg-ai { align-self: flex-start; background: var(--surface-2); border: 0.5px solid var(--border); color: var(--text-primary); border-radius: 12px 12px 12px 2px; }
+  .msg-ai.loading { color: var(--text-muted); font-style: italic; }
+  .chat-input-row { display: flex; gap: 8px; }
+  .chat-input-row input { flex: 1; }
+  .import-drop { border: 1.5px dashed var(--border-strong); border-radius: 12px; padding: 2.5rem; text-align: center; cursor: pointer; color: var(--text-muted); font-size: 14px; transition: all .15s; margin-bottom: 1rem; }
+  .import-drop:hover, .import-drop.drag { border-color: var(--fill-accent); color: var(--text-accent); background: var(--bg-accent); }
+  .settings-section { background: var(--surface-1); border-radius: 12px; border: 0.5px solid var(--border); padding: 1.25rem; margin-bottom: 1rem; }
+  .settings-section h3 { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 8px; }
+  .detail-cover { width: 130px; height: 173px; object-fit: cover; border-radius: 8px; flex-shrink: 0; }
+  .detail-cover-ph { width: 130px; height: 173px; background: var(--surface-1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 44px; flex-shrink: 0; }
+  .hltb-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .hltb-pill { font-size: 12px; padding: 4px 12px; border-radius: 20px; background: var(--surface-1); border: 0.5px solid var(--border); color: var(--text-secondary); }
+  .hltb-pill b { color: var(--text-primary); font-weight: 600; }
+  .view-toggle { display: flex; gap: 4px; }
+  .view-btn { background: none; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 9px; cursor: pointer; color: var(--text-muted); font-size: 16px; line-height: 1; transition: all .15s; }
+  .view-btn.active { background: var(--surface-1); color: var(--text-primary); border-color: var(--border-strong); }
+  .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--fill-primary); color: var(--bg); padding: 10px 18px; border-radius: var(--radius); font-size: 13px; z-index: 300; animation: fadeUp .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .badge-ok { font-size: 11px; background: var(--bg-success); color: var(--text-success); border: 0.5px solid var(--border-success); padding: 3px 9px; border-radius: 20px; }
+  .info-box { background: var(--bg-accent); border: 0.5px solid var(--border-accent); color: var(--text-accent); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; margin-bottom: 1rem; line-height: 1.6; }
+  code { background: var(--surface-0); border: 0.5px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 12px; font-family: monospace; }
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .header-actions .btn:not(.btn-primary) { display: none; }
+    .game-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect, useRef} = React;
+
+const PLATFORMS = [
+  {id:'steam',label:'Steam'},{id:'gog',label:'GOG'},{id:'xbox',label:'Xbox'},
+  {id:'nintendo',label:'Nintendo'},{id:'epic',label:'Epic'},{id:'ps',label:'PlayStation'},
+  {id:'retro',label:'Retro'},{id:'other',label:'Sonstige'}
+];
+const STATUSES = ['unplayed','playing','completed','dropped'];
+const STATUS_LABELS = {unplayed:'Nicht gespielt',playing:'Spiele gerade',completed:'Abgeschlossen',dropped:'Abgebrochen'};
+const STATUS_CLASS = {unplayed:'s-unplayed',playing:'s-playing',completed:'s-completed',dropped:'s-dropped'};
+const DB_KEY = 'cartridgr_v2';
+
+function norm(t){ return t.toLowerCase().replace(/[^a-z0-9]/g,''); }
+function imgUrl(id, size='cover_big'){ return `https://images.igdb.com/igdb/image/upload/t_${size}/${id}.jpg`; }
+
+async function igdbSearch(query){
+  const res = await fetch('/api/igdb', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({action:'search', query})
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+function loadData(){ try { return JSON.parse(localStorage.getItem(DB_KEY)||'{}'); } catch { return {}; } }
+function saveData(d){ localStorage.setItem(DB_KEY, JSON.stringify(d)); }
+
+function Toast({msg}){ return <div className="toast">{msg}</div>; }
+
+function App(){
+  const raw = loadData();
+  const [games, setGames] = useState(raw.games||[]);
+  const [tab, setTab] = useState('library');
+  const [search, setSearch] = useState('');
+  const [fStatus, setFStatus] = useState('all');
+  const [fPlatform, setFPlatform] = useState('all');
+  const [viewMode, setViewMode] = useState('grid');
+  const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showDetail, setShowDetail] = useState(null);
+  const [toast, setToast] = useState(null);
+  const fileRef = useRef(null);
+  const chatEnd = useRef(null);
+  const [chatMsgs, setChatMsgs] = useState([{role:'ai',content:'Hey! Ich kenne deine Bibliothek und helfe dir zu entscheiden was du zocken sollst. Wie ist deine Stimmung gerade?'}]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
+  useEffect(()=>{ if(chatEnd.current) chatEnd.current.scrollIntoView({behavior:'smooth'}); },[chatMsgs]);
+
+  function persist(ng){ saveData({games: ng}); }
+  function updateGames(ng){ setGames(ng); persist(ng); }
+  function showToast(m){ setToast(m); setTimeout(()=>setToast(null),2800); }
+
+  function addGame(g){
+    if(games.some(x=>norm(x.title)===norm(g.title))){ showToast('Duplikat übersprungen'); return false; }
+    const ng=[...games,{...g,id:Date.now()+Math.random(),status:'unplayed',addedAt:new Date().toISOString()}];
+    updateGames(ng); return true;
+  }
+  function updateStatus(id,status){ updateGames(games.map(g=>g.id===id?{...g,status}:g)); }
+  function deleteGame(id){ updateGames(games.filter(g=>g.id!==id)); showToast('Spiel entfernt'); }
+
+  async function importSteam(file){
+    const text = await file.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(text,'text/html');
+    const tds = doc.querySelectorAll('td');
+    let added=0, skipped=0;
+    const batch=[];
+    for(let i=1;i<tds.length;i+=3){
+      const title=tds[i]?.textContent?.trim();
+      if(!title) continue;
+      if(/soundtrack|dlc|pack|bundle|artbook|demo|beta|pre-order/i.test(title)) continue;
+      if(games.some(x=>norm(x.title)===norm(title))){ skipped++; continue; }
+      batch.push({title,platform:'steam',id:Date.now()+Math.random()+added,status:'unplayed',addedAt:new Date().toISOString()});
+      added++;
+    }
+    updateGames([...games,...batch]);
+    showToast(`${added} importiert, ${skipped} Duplikate übersprungen`);
+  }
+
+  async function sendChat(){
+    if(!chatInput.trim()||chatLoading) return;
+    const msg=chatInput.trim(); setChatInput('');
+    setChatMsgs(p=>[...p,{role:'user',content:msg}]);
+    setChatLoading(true);
+    const gameList=games.map(g=>`${g.title} (${g.platform}, ${STATUS_LABELS[g.status]}${g.hltbMain?`, ~${g.hltbMain}h`:''})` ).join('\n');
+    const sys=`Du bist ein Gaming-Berater. Spielebibliothek:\n${gameList||'Leer'}\n\nAntworte auf Deutsch, direkt und konkret. Max 3 Empfehlungen. Kurz halten.`;
+    const history=chatMsgs.map(m=>({role:m.role==='ai'?'assistant':'user',content:m.content}));
+    try{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:sys,messages:[...history,{role:'user',content:msg}]})
+      });
+      const d=await res.json();
+      setChatMsgs(p=>[...p,{role:'ai',content:d.content?.[0]?.text||'Fehler.'}]);
+    }catch{ setChatMsgs(p=>[...p,{role:'ai',content:'Verbindungsfehler.'}]); }
+    setChatLoading(false);
+  }
+
+  const filtered=games.filter(g=>{
+    const ms=g.title.toLowerCase().includes(search.toLowerCase());
+    const mst=fStatus==='all'||g.status===fStatus;
+    const mp=fPlatform==='all'||g.platform===fPlatform;
+    return ms&&mst&&mp;
+  });
+
+  const stats={
+    total:games.length,
+    playing:games.filter(g=>g.status==='playing').length,
+    completed:games.filter(g=>g.status==='completed').length,
+    backlog:games.filter(g=>g.status==='unplayed').length
+  };
+  const platformsInLib=[...new Set(games.map(g=>g.platform))];
+
+  return(
+    <div className="app">
+      <div className="header">
+        <div className="logo"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>
+        <div>
+          <div className="logo-text">Cartridgr</div>
+          <div className="logo-sub">deine plattformübergreifende Spielebibliothek</div>
+        </div>
+        <div className="header-actions">
+          <button className="btn" onClick={()=>setShowImport(true)}><i className="ti ti-upload" aria-hidden="true"></i> Import</button>
+          <button className="btn btn-primary" onClick={()=>setShowAdd(true)}><i className="ti ti-plus" aria-hidden="true"></i> Spiel hinzufügen</button>
+        </div>
+      </div>
+
+      <div className="stats">
+        <div className="stat"><div className="stat-label">Gesamt</div><div className="stat-value">{stats.total}</div></div>
+        <div className="stat"><div className="stat-label">Spiele gerade</div><div className="stat-value" style={{color:'var(--text-accent)'}}>{stats.playing}</div></div>
+        <div className="stat"><div className="stat-label">Abgeschlossen</div><div className="stat-value" style={{color:'var(--text-success)'}}>{stats.completed}</div></div>
+        <div className="stat"><div className="stat-label">Backlog</div><div className="stat-value" style={{color:'var(--text-warning)'}}>{stats.backlog}</div></div>
+      </div>
+
+      <div className="tabs">
+        {[['library','ti-books','Bibliothek'],['ai','ti-sparkles','KI-Tipps'],['settings','ti-settings','Info']].map(([id,icon,label])=>(
+          <button key={id} className={`tab${tab===id?' active':''}`} onClick={()=>setTab(id)}>
+            <i className={`ti ${icon}`} style={{marginRight:5}} aria-hidden="true"></i>{label}
+          </button>
+        ))}
+      </div>
+
+      {tab==='library'&&(
+        <div>
+          <div style={{display:'flex',gap:8,marginBottom:10,alignItems:'center'}}>
+            <input className="search-input" style={{flex:1}} placeholder="Spiel suchen..." value={search} onChange={e=>setSearch(e.target.value)}/>
+            <div className="view-toggle">
+              <button className={`view-btn${viewMode==='grid'?' active':''}`} onClick={()=>setViewMode('grid')} aria-label="Raster"><i className="ti ti-layout-grid" aria-hidden="true"></i></button>
+              <button className={`view-btn${viewMode==='list'?' active':''}`} onClick={()=>setViewMode('list')} aria-label="Liste"><i className="ti ti-list" aria-hidden="true"></i></button>
+            </div>
+          </div>
+          <div className="filters">
+            {['all',...STATUSES].map(s=>(
+              <button key={s} className={`chip${fStatus===s?' active':''}`} onClick={()=>setFStatus(s)}>
+                {s==='all'?'Alle':STATUS_LABELS[s]}
+              </button>
+            ))}
+          </div>
+          {platformsInLib.length>1&&(
+            <div className="filters">
+              {['all',...platformsInLib].map(p=>(
+                <button key={p} className={`chip${fPlatform===p?' active':''}`} onClick={()=>setFPlatform(p)}>
+                  {p==='all'?'Alle Plattformen':PLATFORMS.find(x=>x.id===p)?.label||p}
+                </button>
+              ))}
+            </div>
+          )}
+          {filtered.length===0?(
+            <div className="empty">
+              <i className="ti ti-device-gamepad-2" aria-hidden="true"></i>
+              <p>{games.length===0?'Noch keine Spiele. Importiere deine Steam-Bibliothek oder füge Spiele manuell hinzu.':'Keine Spiele für diese Filter gefunden.'}</p>
+            </div>
+          ):viewMode==='grid'?(
+            <div className="game-grid">
+              {filtered.map(g=>(
+                <div key={g.id} className="game-card" onClick={()=>setShowDetail(g)}>
+                  {g.coverId
+                    ?<img className="game-cover" src={imgUrl(g.coverId)} alt={g.title} loading="lazy"/>
+                    :<div className="game-cover-ph"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
+                  <div className="game-info">
+                    <div className="game-title" title={g.title}>{g.title}</div>
+                    <div className="game-meta">
+                      <span className="game-platform-badge">{PLATFORMS.find(p=>p.id===g.platform)?.label||g.platform}</span>
+                      <span className={`status-dot ${STATUS_CLASS[g.status]}`} title={STATUS_LABELS[g.status]}></span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ):(
+            <div className="list-view">
+              {filtered.map(g=>(
+                <div key={g.id} className="game-row">
+                  {g.coverId
+                    ?<img className="game-row-thumb" src={imgUrl(g.coverId,'cover_small')} alt="" loading="lazy" style={{borderRadius:4}}/>
+                    :<div className="game-row-thumb"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
+                  <span className="game-row-name" onClick={()=>setShowDetail(g)}>{g.title}</span>
+                  {g.hltbMain&&<span className="game-row-hltb"><i className="ti ti-clock" style={{fontSize:11,marginRight:2}} aria-hidden="true"></i>{g.hltbMain}h</span>}
+                  <span className="platform-tag">{PLATFORMS.find(p=>p.id===g.platform)?.label||g.platform}</span>
+                  <select className="status-sel" value={g.status} onChange={e=>{e.stopPropagation();updateStatus(g.id,e.target.value)}}>
+                    {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+                  </select>
+                  <button className="btn-del" onClick={e=>{e.stopPropagation();deleteGame(g.id)}} aria-label="Entfernen"><i className="ti ti-trash" aria-hidden="true"></i></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab==='ai'&&(
+        <div className="chat-wrap">
+          <div className="chat-box">
+            {chatMsgs.map((m,i)=>(
+              <div key={i} className={`msg msg-${m.role}${m.loading?' loading':''}`}>{m.content}</div>
+            ))}
+            {chatLoading&&<div className="msg msg-ai loading">Denke nach...</div>}
+            <div ref={chatEnd}/>
+          </div>
+          <div className="chat-input-row">
+            <input type="text" placeholder="Was soll ich heute spielen..." value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()}/>
+            <button className="btn btn-primary" onClick={sendChat} disabled={chatLoading}><i className="ti ti-send" aria-hidden="true"></i></button>
+          </div>
+        </div>
+      )}
+
+      {tab==='settings'&&(
+        <div>
+          <div className="settings-section">
+            <h3><i className="ti ti-database" aria-hidden="true"></i>Bibliothek</h3>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              <button className="btn" onClick={()=>{
+                const blob=new Blob([JSON.stringify({games},null,2)],{type:'application/json'});
+                const url=URL.createObjectURL(blob);
+                const a=document.createElement('a');a.href=url;a.download='cartridgr-backup.json';a.click();
+                showToast('Backup exportiert');
+              }}><i className="ti ti-download" aria-hidden="true"></i> Exportieren (JSON)</button>
+              <button className="btn" style={{color:'var(--text-danger)',borderColor:'var(--border-danger)'}}
+                onClick={()=>{if(confirm('Alle Spiele löschen?')){updateGames([]);showToast('Bibliothek geleert');}}}>
+                <i className="ti ti-trash" aria-hidden="true"></i> Bibliothek leeren
+              </button>
+            </div>
+            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:10}}>{games.length} Spiele · {Math.round(JSON.stringify(games).length/1024)} KB</p>
+          </div>
+          <div className="settings-section">
+            <h3><i className="ti ti-info-circle" aria-hidden="true"></i>Über Cartridgr</h3>
+            <p style={{fontSize:13,color:'var(--text-secondary)',lineHeight:1.7}}>
+              Cover-Art und Metadaten von <strong>IGDB</strong> (via Netlify Function Proxy).<br/>
+              Spielzeiten von <strong>HowLongToBeat</strong>.<br/>
+              KI-Empfehlungen von <strong>Claude</strong> (Anthropic).<br/>
+              Alle Bibliotheksdaten lokal im Browser gespeichert.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showAdd&&<AddModal onClose={()=>setShowAdd(false)} onAdd={g=>{const ok=addGame(g);if(ok){showToast('Spiel hinzugefügt');setShowAdd(false);}}}/>}
+      {showImport&&<ImportModal fileRef={fileRef} onClose={()=>setShowImport(false)} onSteam={async f=>{await importSteam(f);setShowImport(false);}}/>}
+      {showDetail&&<DetailModal game={showDetail} onClose={()=>setShowDetail(null)}
+        onStatusChange={(id,s)=>{updateStatus(id,s);setShowDetail(p=>({...p,status:s}));}}
+        onDelete={id=>{deleteGame(id);setShowDetail(null);}}
+        onHltbUpdate={(id,main,extra,comp)=>{
+          const ng=games.map(g=>g.id===id?{...g,hltbMain:main,hltbExtra:extra,hltbComp:comp}:g);
+          updateGames(ng);setShowDetail(p=>({...p,hltbMain:main,hltbExtra:extra,hltbComp:comp}));
+        }}
+      />}
+      {toast&&<Toast msg={toast}/>}
+    </div>
+  );
+}
+
+function AddModal({onClose,onAdd}){
+  const [mode,setMode]=useState('igdb');
+  const [query,setQuery]=useState('');
+  const [results,setResults]=useState([]);
+  const [searching,setSearching]=useState(false);
+  const [selected,setSelected]=useState(null);
+  const [platform,setPlatform]=useState('steam');
+  const [manualTitle,setManualTitle]=useState('');
+  const [error,setError]=useState('');
+
+  async function doSearch(){
+    if(!query.trim()) return;
+    setSearching(true); setResults([]); setError('');
+    try{
+      const r=await igdbSearch(query);
+      setResults(Array.isArray(r)?r:[]);
+      if(!Array.isArray(r)||r.length===0) setError('Keine Ergebnisse gefunden.');
+    }catch(e){ setError('Suche fehlgeschlagen. Sind die IGDB Keys in Netlify hinterlegt?'); }
+    setSearching(false);
+  }
+
+  function pick(r){ setSelected(r); setResults([]); setQuery(r.name); }
+  function submit(){
+    if(mode==='igdb'&&selected) onAdd({title:selected.name,platform,coverId:selected.cover?.image_id||null,igdbId:selected.id});
+    else if(mode==='manual'&&manualTitle.trim()) onAdd({title:manualTitle.trim(),platform,coverId:null});
+  }
+
+  return(
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>Spiel hinzufügen</h2>
+        <div style={{display:'flex',gap:6,marginBottom:14}}>
+          <button className={`chip${mode==='igdb'?' active':''}`} onClick={()=>setMode('igdb')}>IGDB-Suche (mit Cover)</button>
+          <button className={`chip${mode==='manual'?' active':''}`} onClick={()=>setMode('manual')}>Manuell</button>
+        </div>
+        {mode==='igdb'?(
+          <div className="form-group">
+            <label className="form-label">Spieltitel suchen</label>
+            <div style={{display:'flex',gap:6}}>
+              <input type="text" placeholder="z.B. Hollow Knight" value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>e.key==='Enter'&&doSearch()}/>
+              <button className="btn" onClick={doSearch}>{searching?'...':<i className="ti ti-search" aria-hidden="true"></i>}</button>
+            </div>
+            {error&&<p style={{fontSize:12,color:'var(--text-danger)',marginTop:6}}>{error}</p>}
+            {results.length>0&&(
+              <div className="search-results">
+                {results.map(r=>(
+                  <div key={r.id} className="search-result" onClick={()=>pick(r)}>
+                    {r.cover?.image_id
+                      ?<img className="sr-thumb" src={imgUrl(r.cover.image_id,'cover_small')} alt="" style={{borderRadius:3}}/>
+                      :<div className="sr-thumb"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
+                    <div>
+                      <div className="sr-name">{r.name}</div>
+                      {r.first_release_date&&<div className="sr-year">{new Date(r.first_release_date*1000).getFullYear()}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {selected&&<p style={{fontSize:12,color:'var(--text-success)',marginTop:6,display:'flex',alignItems:'center',gap:4}}><i className="ti ti-check" aria-hidden="true"></i>{selected.name} ausgewählt</p>}
+          </div>
+        ):(
+          <div className="form-group">
+            <label className="form-label">Titel</label>
+            <input type="text" placeholder="Spieltitel eingeben" value={manualTitle} onChange={e=>setManualTitle(e.target.value)} autoFocus/>
+          </div>
+        )}
+        <div className="form-group">
+          <label className="form-label">Plattform</label>
+          <div className="platform-grid">
+            {PLATFORMS.map(p=>(
+              <button key={p.id} className={`platform-btn${platform===p.id?' active':''}`} onClick={()=>setPlatform(p.id)}>{p.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button className="btn" onClick={onClose}>Abbrechen</button>
+          <button className="btn btn-primary" onClick={submit}><i className="ti ti-plus" aria-hidden="true"></i> Hinzufügen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImportModal({fileRef,onClose,onSteam}){
+  const [loading,setLoading]=useState(false);
+  const [drag,setDrag]=useState(false);
+  async function handle(file){ if(!file) return; setLoading(true); await onSteam(file); setLoading(false); }
+  return(
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h2>Steam-Bibliothek importieren</h2>
+        <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.65}}>
+          Öffne <strong>store.steampowered.com/account/licenses</strong>, speichere die Seite mit <strong>Strg+S</strong> als HTML-Datei und lade sie hier hoch.
+        </p>
+        <div className={`import-drop${drag?' drag':''}`}
+          onDragOver={e=>{e.preventDefault();setDrag(true);}}
+          onDragLeave={()=>setDrag(false)}
+          onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}}
+          onClick={()=>fileRef.current?.click()}>
+          <i className="ti ti-file-upload" style={{fontSize:36,marginBottom:10,display:'block'}} aria-hidden="true"></i>
+          {loading?'Importiere Spiele...':'HTML-Datei hier ablegen oder klicken'}
+        </div>
+        <input ref={fileRef} type="file" accept=".html" style={{display:'none'}} onChange={e=>handle(e.target.files[0])}/>
+        <div className="modal-footer">
+          <button className="btn" onClick={onClose}>Schließen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailModal({game,onClose,onStatusChange,onDelete,onHltbUpdate}){
+  const [loadingHltb,setLoadingHltb]=useState(false);
+  const g=game;
+
+  async function fetchHltb(){
+    setLoadingHltb(true);
+    try{
+      const res=await fetch('https://howlongtobeat.com/api/search/',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Referer':'https://howlongtobeat.com'},
+        body:JSON.stringify({searchTerms:g.title.split(' '),searchType:'games',size:3,page:1})
+      });
+      const d=await res.json();
+      const r=d.data?.[0];
+      if(r){
+        onHltbUpdate(g.id,
+          r.comp_main?Math.round(r.comp_main/3600):null,
+          r.comp_plus?Math.round(r.comp_plus/3600):null,
+          r.comp_100?Math.round(r.comp_100/3600):null
+        );
+      }
+    }catch{}
+    setLoadingHltb(false);
+  }
+
+  return(
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" style={{maxWidth:540}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',gap:16,marginBottom:16}}>
+          {g.coverId
+            ?<img className="detail-cover" src={imgUrl(g.coverId,'cover_big')} alt={g.title}/>
+            :<div className="detail-cover-ph"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
+          <div style={{flex:1}}>
+            <h2 style={{fontSize:20,marginBottom:6}}>{g.title}</h2>
+            <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:12}}>{PLATFORMS.find(p=>p.id===g.platform)?.label||g.platform}</p>
+            <div className="form-group" style={{marginBottom:0}}>
+              <label className="form-label">Status</label>
+              <select value={g.status} onChange={e=>onStatusChange(g.id,e.target.value)}>
+                {STATUSES.map(s=><option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style={{borderTop:'0.5px solid var(--border)',paddingTop:14,marginBottom:14}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+            <span style={{fontSize:13,fontWeight:600}}>Spielzeiten (HowLongToBeat)</span>
+            <button className="btn" style={{fontSize:12,padding:'4px 10px'}} onClick={fetchHltb} disabled={loadingHltb}>
+              {loadingHltb?'Lade...':<><i className="ti ti-refresh" aria-hidden="true"></i> Abrufen</>}
+            </button>
+          </div>
+          {(g.hltbMain||g.hltbExtra||g.hltbComp)?(
+            <div className="hltb-row">
+              {g.hltbMain&&<span className="hltb-pill">Main Story: <b>{g.hltbMain}h</b></span>}
+              {g.hltbExtra&&<span className="hltb-pill">Main + Extra: <b>{g.hltbExtra}h</b></span>}
+              {g.hltbComp&&<span className="hltb-pill">Completionist: <b>{g.hltbComp}h</b></span>}
+            </div>
+          ):<p style={{fontSize:12,color:'var(--text-muted)'}}>Noch nicht geladen. Klick "Abrufen" für Spielzeitschätzungen.</p>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn" style={{color:'var(--text-danger)',borderColor:'var(--border-danger)'}} onClick={()=>onDelete(g.id)}>
+            <i className="ti ti-trash" aria-hidden="true"></i> Entfernen
+          </button>
+          <button className="btn" onClick={onClose}>Schließen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
