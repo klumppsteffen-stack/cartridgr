@@ -198,23 +198,51 @@ function App(){
   function updateStatus(id,status){ updateGames(games.map(g=>g.id===id?{...g,status}:g)); }
   function deleteGame(id){ updateGames(games.filter(g=>g.id!==id)); showToast('Spiel entfernt'); }
 
-  async function importSteam(file){
+  async function importSteam(file, onProgress){
     const text = await file.text();
     const parser = new DOMParser();
     const doc = parser.parseFromString(text,'text/html');
     const tds = doc.querySelectorAll('td');
-    let added=0, skipped=0;
-    const batch=[];
+    let skipped=0;
+    const newGames=[];
     for(let i=1;i<tds.length;i+=3){
       const title=tds[i]?.textContent?.trim();
       if(!title) continue;
       if(/soundtrack|dlc|pack|bundle|artbook|demo|beta|pre-order/i.test(title)) continue;
       if(games.some(x=>norm(x.title)===norm(title))){ skipped++; continue; }
-      batch.push({title,platform:'steam',id:Date.now()+Math.random()+added,status:'unplayed',addedAt:new Date().toISOString()});
-      added++;
+      newGames.push({title,platform:'steam',id:Date.now()+Math.random()+newGames.length,status:'unplayed',addedAt:new Date().toISOString(),coverId:null});
     }
-    updateGames([...games,...batch]);
-    showToast(`${added} importiert, ${skipped} Duplikate übersprungen`);
+    if(newGames.length===0){ showToast(`Keine neuen Spiele gefunden, ${skipped} Duplikate übersprungen`); return; }
+
+    // First save all games immediately so they appear in library
+    const combined=[...games,...newGames];
+    updateGames(combined);
+    showToast(`${newGames.length} Spiele importiert — lade Cover...`);
+
+    // Then enrich with IGDB covers in background, rate-limited to 4/sec
+    let enriched=[...combined];
+    for(let i=0;i<newGames.length;i++){
+      const g=newGames[i];
+      try{
+        const res=await fetch('/api/igdb',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'search',query:g.title})
+        });
+        const results=await res.json();
+        if(Array.isArray(results)&&results.length>0){
+          const match=results.find(r=>norm(r.name)===norm(g.title))||results[0];
+          if(match?.cover?.image_id){
+            enriched=enriched.map(x=>x.id===g.id?{...x,coverId:match.cover.image_id,igdbId:match.id}:x);
+          }
+        }
+      }catch{}
+      // Rate limit: 4 requests/sec = 250ms between requests
+      await new Promise(r=>setTimeout(r,260));
+      if(onProgress) onProgress(i+1, newGames.length);
+    }
+    updateGames(enriched);
+    showToast(`Cover geladen! ${newGames.length} Spiele in der Bibliothek.`);
   }
 
   async function sendChat(){
@@ -396,7 +424,7 @@ function App(){
       )}
 
       {showAdd&&<AddModal onClose={()=>setShowAdd(false)} onAdd={g=>{const ok=addGame(g);if(ok){showToast('Spiel hinzugefügt');setShowAdd(false);}}}/>}
-      {showImport&&<ImportModal fileRef={fileRef} onClose={()=>setShowImport(false)} onSteam={async f=>{await importSteam(f);setShowImport(false);}}/>}
+      {showImport&&<ImportModal fileRef={fileRef} onClose={()=>setShowImport(false)} onSteam={(f,onProgress)=>importSteam(f,onProgress)}/>}
       {showDetail&&<DetailModal game={showDetail} onClose={()=>setShowDetail(null)}
         onStatusChange={(id,s)=>{updateStatus(id,s);setShowDetail(p=>({...p,status:s}));}}
         onDelete={id=>{deleteGame(id);setShowDetail(null);}}
@@ -494,27 +522,68 @@ function AddModal({onClose,onAdd}){
 }
 
 function ImportModal({fileRef,onClose,onSteam}){
-  const [loading,setLoading]=useState(false);
+  const [phase,setPhase]=useState('idle'); // idle | importing | covers | done
   const [drag,setDrag]=useState(false);
-  async function handle(file){ if(!file) return; setLoading(true); await onSteam(file); setLoading(false); }
+  const [progress,setProgress]=useState({current:0,total:0});
+
+  async function handle(file){
+    if(!file) return;
+    setPhase('importing');
+    await onSteam(file, (current,total)=>{
+      setPhase('covers');
+      setProgress({current,total});
+    });
+    setPhase('done');
+  }
+
+  const pct = progress.total>0 ? Math.round((progress.current/progress.total)*100) : 0;
+
   return(
-    <div className="modal-bg" onClick={onClose}>
+    <div className="modal-bg" onClick={phase==='idle'||phase==='done'?onClose:undefined}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <h2>Steam-Bibliothek importieren</h2>
-        <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.65}}>
-          Öffne <strong>store.steampowered.com/account/licenses</strong>, speichere die Seite mit <strong>Strg+S</strong> als HTML-Datei und lade sie hier hoch.
-        </p>
-        <div className={`import-drop${drag?' drag':''}`}
-          onDragOver={e=>{e.preventDefault();setDrag(true);}}
-          onDragLeave={()=>setDrag(false)}
-          onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}}
-          onClick={()=>fileRef.current?.click()}>
-          <i className="ti ti-file-upload" style={{fontSize:36,marginBottom:10,display:'block'}} aria-hidden="true"></i>
-          {loading?'Importiere Spiele...':'HTML-Datei hier ablegen oder klicken'}
-        </div>
-        <input ref={fileRef} type="file" accept=".html" style={{display:'none'}} onChange={e=>handle(e.target.files[0])}/>
+        {phase==='idle'&&<>
+          <p style={{fontSize:13,color:'var(--text-secondary)',marginBottom:16,lineHeight:1.65}}>
+            Öffne <strong>store.steampowered.com/account/licenses</strong>, speichere die Seite mit <strong>Strg+S</strong> als HTML-Datei und lade sie hier hoch.
+          </p>
+          <div className={`import-drop${drag?' drag':''}`}
+            onDragOver={e=>{e.preventDefault();setDrag(true);}}
+            onDragLeave={()=>setDrag(false)}
+            onDrop={e=>{e.preventDefault();setDrag(false);handle(e.dataTransfer.files[0]);}}
+            onClick={()=>fileRef.current?.click()}>
+            <i className="ti ti-file-upload" style={{fontSize:36,marginBottom:10,display:'block'}} aria-hidden="true"></i>
+            HTML-Datei hier ablegen oder klicken
+          </div>
+          <input ref={fileRef} type="file" accept=".html" style={{display:'none'}} onChange={e=>handle(e.target.files[0])}/>
+        </>}
+        {phase==='importing'&&(
+          <div style={{textAlign:'center',padding:'2rem 0'}}>
+            <i className="ti ti-loader-2" style={{fontSize:36,marginBottom:12,display:'block',color:'var(--text-accent)',animation:'spin 1s linear infinite'}} aria-hidden="true"></i>
+            <p style={{fontSize:14,color:'var(--text-secondary)'}}>Spiele werden importiert...</p>
+          </div>
+        )}
+        {phase==='covers'&&(
+          <div style={{padding:'1rem 0'}}>
+            <p style={{fontSize:14,color:'var(--text-primary)',marginBottom:8,fontWeight:500}}>Cover-Art wird geladen...</p>
+            <p style={{fontSize:12,color:'var(--text-muted)',marginBottom:16}}>{progress.current} von {progress.total} Spielen</p>
+            <div style={{height:6,background:'var(--surface-1)',borderRadius:3,overflow:'hidden',marginBottom:8}}>
+              <div style={{height:'100%',background:'var(--fill-accent)',borderRadius:3,width:`${pct}%`,transition:'width .3s'}}></div>
+            </div>
+            <p style={{fontSize:12,color:'var(--text-muted)'}}>Das dauert ca. {Math.ceil((progress.total-progress.current)*0.26)}s. Du kannst das Fenster offen lassen.</p>
+          </div>
+        )}
+        {phase==='done'&&(
+          <div style={{textAlign:'center',padding:'1.5rem 0'}}>
+            <i className="ti ti-circle-check" style={{fontSize:40,marginBottom:12,display:'block',color:'var(--text-success)'}} aria-hidden="true"></i>
+            <p style={{fontSize:14,color:'var(--text-primary)',fontWeight:500}}>Import abgeschlossen!</p>
+            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>Alle Cover wurden geladen.</p>
+          </div>
+        )}
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
         <div className="modal-footer">
-          <button className="btn" onClick={onClose}>Schließen</button>
+          <button className="btn" onClick={onClose} disabled={phase==='importing'||phase==='covers'}>
+            {phase==='done'?'Fertig':'Schließen'}
+          </button>
         </div>
       </div>
     </div>
