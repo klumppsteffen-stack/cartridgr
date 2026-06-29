@@ -198,6 +198,26 @@ function App(){
   function updateStatus(id,status){ updateGames(games.map(g=>g.id===id?{...g,status}:g)); }
   function deleteGame(id){ updateGames(games.filter(g=>g.id!==id)); showToast('Spiel entfernt'); }
 
+  async function enrichGame(g){
+    const [igdbRes, hltbRes] = await Promise.allSettled([
+      fetch('/api/igdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',query:g.title})}).then(r=>r.json()),
+      fetch('/api/hltb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:g.title})}).then(r=>r.json())
+    ]);
+    const updates={};
+    if(igdbRes.status==='fulfilled'&&Array.isArray(igdbRes.value)&&igdbRes.value.length>0){
+      const match=igdbRes.value.find(r=>norm(r.name)===norm(g.title))||igdbRes.value[0];
+      if(match?.cover?.image_id) updates.coverId=match.cover.image_id;
+      if(match?.id) updates.igdbId=match.id;
+    }
+    if(hltbRes.status==='fulfilled'&&hltbRes.value){
+      const d=hltbRes.value;
+      if(d.comp_main) updates.hltbMain=Math.round(d.comp_main/3600);
+      if(d.comp_plus) updates.hltbExtra=Math.round(d.comp_plus/3600);
+      if(d.comp_100) updates.hltbComp=Math.round(d.comp_100/3600);
+    }
+    return updates;
+  }
+
   async function importSteam(file, onProgress){
     const text = await file.text();
     const parser = new DOMParser();
@@ -212,37 +232,48 @@ function App(){
       if(games.some(x=>norm(x.title)===norm(title))){ skipped++; continue; }
       newGames.push({title,platform:'steam',id:Date.now()+Math.random()+newGames.length,status:'unplayed',addedAt:new Date().toISOString(),coverId:null});
     }
-    if(newGames.length===0){ showToast(`Keine neuen Spiele gefunden, ${skipped} Duplikate übersprungen`); return; }
-
-    // First save all games immediately so they appear in library
+    if(newGames.length===0){ showToast(`Keine neuen Spiele gefunden, ${skipped} Duplikate uebersprungen`); return; }
     const combined=[...games,...newGames];
     updateGames(combined);
-    showToast(`${newGames.length} Spiele importiert — lade Cover...`);
-
-    // Then enrich with IGDB covers in background, rate-limited to 4/sec
+    showToast(`${newGames.length} Spiele importiert - lade Cover & Spielzeiten...`);
     let enriched=[...combined];
     for(let i=0;i<newGames.length;i++){
       const g=newGames[i];
-      try{
-        const res=await fetch('/api/igdb',{
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({action:'search',query:g.title})
-        });
-        const results=await res.json();
-        if(Array.isArray(results)&&results.length>0){
-          const match=results.find(r=>norm(r.name)===norm(g.title))||results[0];
-          if(match?.cover?.image_id){
-            enriched=enriched.map(x=>x.id===g.id?{...x,coverId:match.cover.image_id,igdbId:match.id}:x);
-          }
-        }
-      }catch{}
-      // Rate limit: 4 requests/sec = 250ms between requests
-      await new Promise(r=>setTimeout(r,260));
+      const updates=await enrichGame(g);
+      if(Object.keys(updates).length>0){
+        enriched=enriched.map(x=>x.id===g.id?{...x,...updates}:x);
+      }
+      await new Promise(r=>setTimeout(r,280));
       if(onProgress) onProgress(i+1, newGames.length);
+      if(i%10===9) updateGames([...enriched]);
     }
     updateGames(enriched);
-    showToast(`Cover geladen! ${newGames.length} Spiele in der Bibliothek.`);
+    showToast(`Fertig! ${newGames.length} Spiele mit Cover & Spielzeiten.`);
+  }
+
+  async function refreshHltb(onProgress){
+    const toUpdate=games.filter(g=>!g.hltbMain);
+    if(toUpdate.length===0){ showToast('Alle Spielzeiten bereits vorhanden'); return; }
+    let enriched=[...games];
+    for(let i=0;i<toUpdate.length;i++){
+      const g=toUpdate[i];
+      try{
+        const res=await fetch('/api/hltb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:g.title})});
+        const d=await res.json();
+        if(d){
+          const updates={};
+          if(d.comp_main) updates.hltbMain=Math.round(d.comp_main/3600);
+          if(d.comp_plus) updates.hltbExtra=Math.round(d.comp_plus/3600);
+          if(d.comp_100) updates.hltbComp=Math.round(d.comp_100/3600);
+          enriched=enriched.map(x=>x.id===g.id?{...x,...updates}:x);
+        }
+      }catch{}
+      await new Promise(r=>setTimeout(r,280));
+      if(onProgress) onProgress(i+1, toUpdate.length);
+      if(i%10===9) updateGames([...enriched]);
+    }
+    updateGames(enriched);
+    showToast('Spielzeiten aktualisiert!');
   }
 
   async function sendChat(){
@@ -397,7 +428,7 @@ function App(){
         <div>
           <div className="settings-section">
             <h3><i className="ti ti-database" aria-hidden="true"></i>Bibliothek</h3>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
               <button className="btn" onClick={()=>{
                 const blob=new Blob([JSON.stringify({games},null,2)],{type:'application/json'});
                 const url=URL.createObjectURL(blob);
@@ -409,7 +440,8 @@ function App(){
                 <i className="ti ti-trash" aria-hidden="true"></i> Bibliothek leeren
               </button>
             </div>
-            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:10}}>{games.length} Spiele · {Math.round(JSON.stringify(games).length/1024)} KB</p>
+            <HltbRefreshButton games={games} updateGames={updateGames} showToast={showToast} refreshHltb={refreshHltb}/>
+            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:10}}>{games.length} Spiele · {Math.round(JSON.stringify(games).length/1024)} KB · {games.filter(g=>g.hltbMain).length} mit Spielzeiten</p>
           </div>
           <div className="settings-section">
             <h3><i className="ti ti-info-circle" aria-hidden="true"></i>Über Cartridgr</h3>
@@ -655,6 +687,41 @@ function DetailModal({game,onClose,onStatusChange,onDelete,onHltbUpdate}){
           <button className="btn" onClick={onClose}>Schließen</button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function HltbRefreshButton({games, refreshHltb, showToast}){
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState({current:0,total:0});
+  const missing = games.filter(g=>!g.hltbMain).length;
+
+  async function start(){
+    if(running) return;
+    setRunning(true);
+    setProgress({current:0,total:missing});
+    await refreshHltb((current,total)=>setProgress({current,total}));
+    setRunning(false);
+  }
+
+  const pct = progress.total>0 ? Math.round((progress.current/progress.total)*100) : 0;
+
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:running?10:0}}>
+        <button className="btn" onClick={start} disabled={running||missing===0}>
+          <i className="ti ti-clock" aria-hidden="true"></i>
+          {running ? `Lade Spielzeiten... ${progress.current}/${progress.total}` : `Spielzeiten aktualisieren (${missing} fehlen)`}
+        </button>
+      </div>
+      {running&&(
+        <div>
+          <div style={{height:4,background:'var(--surface-2)',borderRadius:2,overflow:'hidden'}}>
+            <div style={{height:'100%',background:'var(--fill-accent)',borderRadius:2,width:`${pct}%`,transition:'width .3s'}}></div>
+          </div>
+          <p style={{fontSize:11,color:'var(--text-muted)',marginTop:4}}>~{Math.ceil((progress.total-progress.current)*0.28)}s verbleibend</p>
+        </div>
+      )}
     </div>
   );
 }
