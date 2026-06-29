@@ -66,7 +66,7 @@ exports.handler = async (event) => {
           Authorization: `Bearer ${token}`,
           "Content-Type": "text/plain",
         },
-        `search "${query}"; fields name,cover.image_id,first_release_date,genres.name,summary; limit 8;`
+        `search "${query}"; fields name,cover.image_id,first_release_date,genres.name,summary,category; limit 8;`
       );
       return {
         statusCode: 200,
@@ -83,7 +83,7 @@ exports.handler = async (event) => {
           Authorization: `Bearer ${token}`,
           "Content-Type": "text/plain",
         },
-        `where id = ${query}; fields name,cover.image_id,first_release_date,genres.name,summary; limit 1;`
+        `where id = ${query}; fields name,cover.image_id,first_release_date,genres.name,summary,category; limit 1;`
       );
       return {
         statusCode: 200,
