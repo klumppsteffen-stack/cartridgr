@@ -176,7 +176,8 @@ function App(){
   const [viewMode, setViewMode] = useState('grid');
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [showDetail, setShowDetail] = useState(null);
+  const [showDetailId, setShowDetailId] = useState(null);
+  const [showDlc, setShowDlc] = useState(false);
   const [toast, setToast] = useState(null);
   const fileRef = useRef(null);
   const chatEnd = useRef(null);
@@ -198,6 +199,9 @@ function App(){
   function updateStatus(id,status){ updateGames(games.map(g=>g.id===id?{...g,status}:g)); }
   function deleteGame(id){ updateGames(games.filter(g=>g.id!==id)); showToast('Spiel entfernt'); }
 
+  // IGDB category: 0=main, 1=dlc, 2=expansion, 3=bundle, 4=standalone expansion, 5=mod, 6=episode, 8=manualAdd, 9=remake, 10=remaster, 11=expandedGame, 12=port, 13=fork
+  const DLC_CATEGORIES = new Set([1,2,5,6]);
+
   async function enrichGame(g){
     const [igdbRes, hltbRes] = await Promise.allSettled([
       fetch('/api/igdb',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'search',query:g.title})}).then(r=>r.json()),
@@ -208,6 +212,7 @@ function App(){
       const match=igdbRes.value.find(r=>norm(r.name)===norm(g.title))||igdbRes.value[0];
       if(match?.cover?.image_id) updates.coverId=match.cover.image_id;
       if(match?.id) updates.igdbId=match.id;
+      if(match?.category !== undefined) updates.isDlc = DLC_CATEGORIES.has(match.category);
     }
     if(hltbRes.status==='fulfilled'&&hltbRes.value){
       const d=hltbRes.value;
@@ -300,15 +305,18 @@ function App(){
     const ms=g.title.toLowerCase().includes(search.toLowerCase());
     const mst=fStatus==='all'||g.status===fStatus;
     const mp=fPlatform==='all'||g.platform===fPlatform;
-    return ms&&mst&&mp;
+    const mdlc=showDlc||!g.isDlc;
+    return ms&&mst&&mp&&mdlc;
   });
 
+  const mainGames=games.filter(g=>!g.isDlc);
   const stats={
-    total:games.length,
-    playing:games.filter(g=>g.status==='playing').length,
-    completed:games.filter(g=>g.status==='completed').length,
-    backlog:games.filter(g=>g.status==='unplayed').length
+    total:mainGames.length,
+    playing:mainGames.filter(g=>g.status==='playing').length,
+    completed:mainGames.filter(g=>g.status==='completed').length,
+    backlog:mainGames.filter(g=>g.status==='unplayed').length
   };
+  const dlcCount=games.filter(g=>g.isDlc).length;
   const platformsInLib=[...new Set(games.map(g=>g.platform))];
 
   return(
@@ -355,6 +363,11 @@ function App(){
                 {s==='all'?'Alle':STATUS_LABELS[s]}
               </button>
             ))}
+            {dlcCount>0&&(
+              <button className={`chip${showDlc?' active':''}`} onClick={()=>setShowDlc(p=>!p)} style={{marginLeft:'auto'}}>
+                <i className="ti ti-puzzle" style={{marginRight:4}} aria-hidden="true"></i>DLCs ({dlcCount})
+              </button>
+            )}
           </div>
           {platformsInLib.length>1&&(
             <div className="filters">
@@ -373,7 +386,7 @@ function App(){
           ):viewMode==='grid'?(
             <div className="game-grid">
               {filtered.map(g=>(
-                <div key={g.id} className="game-card" onClick={()=>setShowDetail(g)}>
+                <div key={g.id} className="game-card" onClick={()=>setShowDetailId(g.id)}>
                   {g.coverId
                     ?<img className="game-cover" src={imgUrl(g.coverId)} alt={g.title} loading="lazy"/>
                     :<div className="game-cover-ph"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
@@ -394,7 +407,7 @@ function App(){
                   {g.coverId
                     ?<img className="game-row-thumb" src={imgUrl(g.coverId,'cover_small')} alt="" loading="lazy" style={{borderRadius:4}}/>
                     :<div className="game-row-thumb"><i className="ti ti-device-gamepad-2" aria-hidden="true"></i></div>}
-                  <span className="game-row-name" onClick={()=>setShowDetail(g)}>{g.title}</span>
+                  <span className="game-row-name" onClick={()=>setShowDetailId(g.id)}>{g.title}</span>
                   {g.hltbMain&&<span className="game-row-hltb"><i className="ti ti-clock" style={{fontSize:11,marginRight:2}} aria-hidden="true"></i>{g.hltbMain}h</span>}
                   <span className="platform-tag">{PLATFORMS.find(p=>p.id===g.platform)?.label||g.platform}</span>
                   <select className="status-sel" value={g.status} onChange={e=>{e.stopPropagation();updateStatus(g.id,e.target.value)}}>
@@ -441,7 +454,7 @@ function App(){
               </button>
             </div>
             <HltbRefreshButton games={games} updateGames={updateGames} showToast={showToast} refreshHltb={refreshHltb}/>
-            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:10}}>{games.length} Spiele · {Math.round(JSON.stringify(games).length/1024)} KB · {games.filter(g=>g.hltbMain).length} mit Spielzeiten</p>
+            <p style={{fontSize:12,color:'var(--text-muted)',marginTop:10}}>{games.length} Spiele gesamt · {mainGames.length} Hauptspiele · {dlcCount} DLCs · {Math.round(JSON.stringify(games).length/1024)} KB · {games.filter(g=>g.hltbMain).length} mit Spielzeiten</p>
           </div>
           <div className="settings-section">
             <h3><i className="ti ti-info-circle" aria-hidden="true"></i>Über Cartridgr</h3>
@@ -457,14 +470,14 @@ function App(){
 
       {showAdd&&<AddModal onClose={()=>setShowAdd(false)} onAdd={g=>{const ok=addGame(g);if(ok){showToast('Spiel hinzugefügt');setShowAdd(false);}}}/>}
       {showImport&&<ImportModal fileRef={fileRef} onClose={()=>setShowImport(false)} onSteam={(f,onProgress)=>importSteam(f,onProgress)}/>}
-      {showDetail&&<DetailModal game={showDetail} onClose={()=>setShowDetail(null)}
-        onStatusChange={(id,s)=>{updateStatus(id,s);setShowDetail(p=>({...p,status:s}));}}
-        onDelete={id=>{deleteGame(id);setShowDetail(null);}}
+      {showDetailId&&(()=>{const dg=games.find(g=>g.id===showDetailId);return dg?<DetailModal game={dg} onClose={()=>setShowDetailId(null)}
+        onStatusChange={(id,s)=>updateStatus(id,s)}
+        onDelete={id=>{deleteGame(id);setShowDetailId(null);}}
         onHltbUpdate={(id,main,extra,comp)=>{
           const ng=games.map(g=>g.id===id?{...g,hltbMain:main,hltbExtra:extra,hltbComp:comp}:g);
-          updateGames(ng);setShowDetail(p=>({...p,hltbMain:main,hltbExtra:extra,hltbComp:comp}));
+          updateGames(ng);
         }}
-      />}
+      />:null;})()}
       {toast&&<Toast msg={toast}/>}
     </div>
   );
